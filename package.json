@@ -1,0 +1,41 @@
+{
+  "name": "obsidian-xmind-to-canvas",
+  "version": "0.1.0",
+  "description": "Obsidian plugin to convert XMind files to JSON Canvas format",
+  "main": "main.js",
+  "type": "module",
+  "scripts": {
+    "dev": "rollup --config rollup.config.js -w",
+    "build": "rollup --config rollup.config.js --environment BUILD:production",
+    "lint": "eslint src --ext .ts",
+    "lint:fix": "eslint src --ext .ts --fix"
+  },
+  "keywords": [
+    "obsidian",
+    "plugin",
+    "xmind",
+    "canvas",
+    "mind-map"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "@rollup/plugin-commonjs": "^25.0.7",
+    "@rollup/plugin-json": "^6.1.0",
+    "@rollup/plugin-node-resolve": "^15.2.3",
+    "@rollup/plugin-typescript": "^11.1.6",
+    "@typescript-eslint/eslint-plugin": "^6.19.0",
+    "@typescript-eslint/parser": "^6.19.0",
+    "builtin-modules": "^3.3.0",
+    "eslint": "^8.56.0",
+    "obsidian": "latest",
+    "rollup": "^4.9.6",
+    "tslib": "^2.6.2",
+    "typescript": "^5.3.3"
+  },
+  "dependencies": {
+    "@types/jszip": "3.4.0",
+    "elkjs": "^0.9.3",
+    "jszip": "3.10.1"
+  }
+}
