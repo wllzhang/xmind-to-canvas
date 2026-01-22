@@ -5,7 +5,8 @@
     "declarationMap": true,
     "outDir": "./lib",
     "rootDir": "./src/core",
-    "emitDeclarationOnly": true
+    "emitDeclarationOnly": true,
+    "skipLibCheck": true
   },
   "include": [
     "src/core/**/*.ts"
