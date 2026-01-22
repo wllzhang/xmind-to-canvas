@@ -54,7 +54,7 @@ export default class XMindToCanvasPlugin extends Plugin {
     );
 
     if (xmindFiles.length === 0) {
-      new Notice('No XMind files found in vault.');
+      new Notice('No xmind files found in vault.');
       return;
     }
 

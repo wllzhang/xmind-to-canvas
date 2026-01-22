@@ -5,7 +5,8 @@
     "node": true
   },
   "plugins": [
-    "@typescript-eslint"
+    "@typescript-eslint",
+    "obsidianmd"
   ],
   "extends": [
     "eslint:recommended",
