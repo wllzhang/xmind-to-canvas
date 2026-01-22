@@ -1,6 +1,12 @@
 # XMind to Canvas
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Version](https://img.shields.io/badge/version-1.0.6-blue.svg)](https://github.com/wllzhang/xmind-to-canvas/releases)
+[![Build Status](https://github.com/wllzhang/xmind-to-canvas/actions/workflows/release.yml/badge.svg)](https://github.com/wllzhang/xmind-to-canvas/actions/workflows/release.yml)
+
 Convert XMind mind map files to JSON Canvas format for seamless integration in Obsidian.
+
+> **JSON Canvas Format**: This tool converts XMind files to the [JSON Canvas](https://github.com/obsidianmd/jsoncanvas) format, an open file format for infinite canvas data originally created for Obsidian. JSON Canvas files use the `.canvas` extension and can be used in any app that supports the format.
 
 ## Features
 
