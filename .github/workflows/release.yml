@@ -391,7 +391,7 @@ jobs:
         id: check_npm_version
         run: |
           VERSION="${{ needs.sync-and-tag.outputs.version }}"
-          if npm view "@wllzhang/xmind-to-canvas@$VERSION" version >/dev/null 2>&1; then
+          if npm view "@wllzhang/xmind-to-canvas@$VERSION" --registry=https://registry.npmjs.org/ version >/dev/null 2>&1; then
             echo "⚠️  Version $VERSION already published to npm"
             echo "published=true" >> $GITHUB_OUTPUT
           else
@@ -424,7 +424,7 @@ jobs:
 
       - name: Publish to npm
         if: steps.check_npm_version.outputs.published == 'false'
-        run: npm publish --access public
+        run: npm publish --access public --registry https://registry.npmjs.org/
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
@@ -434,9 +434,9 @@ jobs:
           VERSION="${{ needs.sync-and-tag.outputs.version }}"
           sleep 5  # Wait for npm registry to update
           
-          if npm view "@wllzhang/xmind-to-canvas@$VERSION" version >/dev/null 2>&1; then
+          if npm view "@wllzhang/xmind-to-canvas@$VERSION" --registry=https://registry.npmjs.org/ version >/dev/null 2>&1; then
             echo "✅ Successfully published @wllzhang/xmind-to-canvas@$VERSION to npm"
-            npm view "@wllzhang/xmind-to-canvas@$VERSION"
+            npm view "@wllzhang/xmind-to-canvas@$VERSION" --registry=https://registry.npmjs.org/
           else
             echo "⚠️  Warning: Could not verify publication (may need more time to propagate)"
           fi
@@ -502,7 +502,7 @@ jobs:
 
       - name: Publish to GitHub Packages
         if: steps.check_gh_version.outputs.published == 'false'
-        run: npm publish
+        run: npm publish --registry https://npm.pkg.github.com
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
