@@ -58,7 +58,7 @@ npm run lint:fix
 
 **Windows (PowerShell 管理员):**
 ```powershell
-New-Item -ItemType SymbolicLink -Path "C:\path\to\vault\.obsidian\plugins\xmind-to-canvas" -Target "C:\path\to\xmindtocanvas"
+New-Item -ItemType SymbolicLink -Path "C:\Users\wenli\OneDrive\cloud\Obsidian\ZWL\.obsidian\plugins\xmind-to-canvas" -Target "D:\workspace\xmind-to-canvas"
 ```
 
 **macOS/Linux:**

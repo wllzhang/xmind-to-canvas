@@ -99,9 +99,26 @@ export class XMindParser {
 
     // Recursively process children
     // Handle different possible children fields
-    const children = topic.children || topic.attached || topic.topics || [];
+    // XMind Zen format uses children.attached for child topics
+    let children: any[] = [];
     
-    if (Array.isArray(children) && children.length > 0) {
+    if (topic.children) {
+      if (topic.children.attached && Array.isArray(topic.children.attached)) {
+        // XMind Zen format: children.attached
+        children = topic.children.attached;
+      } else if (Array.isArray(topic.children)) {
+        // Direct array format
+        children = topic.children;
+      }
+    } else if (topic.attached && Array.isArray(topic.attached)) {
+      // Alternative format
+      children = topic.attached;
+    } else if (topic.topics && Array.isArray(topic.topics)) {
+      // Another alternative format
+      children = topic.topics;
+    }
+    
+    if (children.length > 0) {
       node.children = children.map((child: any) => 
         this.extractNodes(child, node.id)
       );
