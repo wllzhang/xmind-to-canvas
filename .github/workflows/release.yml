@@ -182,6 +182,24 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Build npm package
+        if: steps.check_versions.outputs.changed == 'true'
+        run: npm run build:npm
+
+      - name: Setup npm for publishing
+        if: steps.check_versions.outputs.changed == 'true'
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+          registry-url: 'https://registry.npmjs.org'
+          cache: 'npm'
+
+      - name: Publish to npm
+        if: steps.check_versions.outputs.changed == 'true'
+        run: npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
   build-web:
     runs-on: ubuntu-latest
     needs: check

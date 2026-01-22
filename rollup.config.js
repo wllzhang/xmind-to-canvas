@@ -68,4 +68,46 @@ const webBuild = {
   ].filter(Boolean)
 };
 
-export default [obsidianBuild, webBuild];
+// NPM package build - ES Module
+const npmESMBuild = {
+  input: 'src/core/index.ts',
+  output: {
+    file: 'lib/index.js',
+    format: 'es',
+    sourcemap: !isProd,
+  },
+  external: ['jszip', 'elkjs/lib/elk.bundled'],
+  plugins: [
+    typescript({
+      declaration: false,
+      declarationMap: false,
+    }),
+    nodeResolve({ browser: false }),
+    commonjs(),
+    json(),
+    isProd && terser(),
+  ].filter(Boolean)
+};
+
+// NPM package build - CommonJS
+const npmCJSBuild = {
+  input: 'src/core/index.ts',
+  output: {
+    file: 'lib/index.cjs',
+    format: 'cjs',
+    sourcemap: !isProd,
+  },
+  external: ['jszip', 'elkjs/lib/elk.bundled'],
+  plugins: [
+    typescript({
+      declaration: false,
+      declarationMap: false,
+    }),
+    nodeResolve({ browser: false }),
+    commonjs(),
+    json(),
+    isProd && terser(),
+  ].filter(Boolean)
+};
+
+export default [obsidianBuild, webBuild, npmESMBuild, npmCJSBuild];

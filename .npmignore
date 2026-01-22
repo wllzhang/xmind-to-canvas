@@ -1,0 +1,45 @@
+# Obsidian plugin files
+main.js
+manifest.json
+styles.css
+
+# Source files
+src/
+tests/
+*.test.ts
+*.test.js
+
+# Build configs
+rollup.config.js
+tsconfig.json
+tsconfig.build.json
+vitest.config.ts
+eslint.config.mjs
+.eslintrc.json
+
+# Web files
+web/
+
+# Development files
+.github/
+node_modules/
+.vscode/
+.idea/
+
+# CI/CD
+.github/
+
+# Documentation (keep README.md and LICENSE)
+CHANGELOG.md
+
+# Version files
+versions.json
+
+# Git
+.git/
+.gitignore
+
+# Other
+*.log
+.DS_Store
+*.zip

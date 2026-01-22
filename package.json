@@ -1,13 +1,16 @@
 {
-  "name": "obsidian-xmind-to-canvas",
+  "name": "xmind-to-canvas",
   "version": "1.0.6",
-  "description": "Obsidian plugin to convert XMind files to JSON Canvas format",
+  "description": "Convert XMind files to JSON Canvas format",
   "main": "main.js",
   "type": "module",
   "scripts": {
     "dev": "rollup --config rollup.config.js -w",
     "build": "rollup --config rollup.config.js --environment BUILD:production",
     "build:web": "rollup --config rollup.config.js --environment BUILD:production && echo 'Web bundle ready at web/xmind-to-canvas.umd.js'",
+    "build:npm": "rollup --config rollup.config.js --environment BUILD:production && npm run build:types",
+    "build:types": "tsc --project tsconfig.build.json",
+    "prepublishOnly": "npm run build:npm",
     "serve:web": "npx serve web -p 3000",
     "lint": "eslint src",
     "lint:fix": "eslint src --fix",
@@ -15,15 +18,33 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage"
   },
+  "exports": {
+    ".": {
+      "import": "./lib/index.js",
+      "require": "./lib/index.cjs",
+      "types": "./lib/index.d.ts"
+    }
+  },
+  "files": [
+    "lib",
+    "README.md",
+    "LICENSE"
+  ],
   "keywords": [
     "obsidian",
     "plugin",
     "xmind",
     "canvas",
-    "mind-map"
+    "mind-map",
+    "json-canvas",
+    "converter"
   ],
   "author": "",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/wllzhang/xmind-to-canvas.git"
+  },
   "devDependencies": {
     "@rollup/plugin-commonjs": "^25.0.7",
     "@rollup/plugin-json": "^6.1.0",
