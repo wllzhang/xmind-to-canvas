@@ -13,9 +13,7 @@ export default class XMindToCanvasPlugin extends Plugin {
   private layoutCalculator: LayoutCalculator;
   private canvasGenerator: CanvasGenerator;
 
-  async onload() {
-    console.log('Loading XMind to Canvas plugin');
-
+  onload() {
     // Initialize components
     this.xmindParser = new XMindParser();
     this.layoutCalculator = new LayoutCalculator();
@@ -23,8 +21,8 @@ export default class XMindToCanvasPlugin extends Plugin {
 
     // Add command to convert XMind file
     this.addCommand({
-      id: 'convert-xmind-to-canvas',
-      name: 'Convert XMind to Canvas',
+      id: 'convert',
+      name: 'Convert to canvas',
       callback: () => this.selectAndConvertXMindFile(),
     });
 
@@ -34,7 +32,7 @@ export default class XMindToCanvasPlugin extends Plugin {
         if (file.extension === 'xmind') {
           menu.addItem((item) => {
             item
-              .setTitle('Convert to Canvas')
+              .setTitle('Convert to canvas')
               .setIcon('canvas')
               .onClick(async () => {
                 await this.convertXMindFile(file);
@@ -43,14 +41,9 @@ export default class XMindToCanvasPlugin extends Plugin {
         }
       })
     );
-
-    console.log('XMind to Canvas plugin loaded');
   }
 
-  onunload() {
-    console.log('Unloading XMind to Canvas plugin');
-  }
-
+ 
   /**
    * Show file selector and convert selected XMind file
    */
@@ -61,7 +54,7 @@ export default class XMindToCanvasPlugin extends Plugin {
     );
 
     if (xmindFiles.length === 0) {
-      new Notice('No XMind files found in vault');
+      new Notice('No XMind files found in vault.');
       return;
     }
 
@@ -142,8 +135,8 @@ export default class XMindToCanvasPlugin extends Plugin {
         await this.app.workspace.getLeaf(false).openFile(canvasFile);
       }
     } catch (error: unknown) {
-      console.error('Error converting XMind file:', error);
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      console.error('Error converting XMind file:', error);
       new Notice(`❌ Error: ${errorMessage}`);
     }
   }

@@ -124,7 +124,19 @@ export class XMindParser {
    */
   private extractNodes(topic: Record<string, unknown>, parentId?: string): XMindNode {
     // Handle different possible title fields
-    const title = topic.title || topic.label || topic.name || 'Untitled';
+    const titleRaw = topic.title || topic.label || topic.name || 'Untitled';
+    // Handle title as object (e.g., { text: "Title" }) or string
+    let title: string;
+    if (typeof titleRaw === 'string') {
+      title = titleRaw;
+    } else if (typeof titleRaw === 'object' && titleRaw !== null) {
+      const titleObj = titleRaw as Record<string, unknown>;
+      title = (typeof titleObj.text === 'string' ? titleObj.text : 
+               typeof titleObj.plain === 'string' ? titleObj.plain :
+               String(titleObj));
+    } else {
+      title = String(titleRaw);
+    }
     
     // Ensure id is a string
     const topicId = topic.id;
@@ -132,16 +144,28 @@ export class XMindParser {
     
     const node: XMindNode = {
       id,
-      title: String(title),
+      title,
       children: [],
     };
 
     // Extract notes if available
     if (topic.notes) {
-      const notes = topic.notes as Record<string, unknown> | string;
-      node.notes = (typeof notes === 'object' && notes !== null && 'plain' in notes 
-        ? String(notes.plain) 
-        : String(notes));
+      const notesRaw = topic.notes as Record<string, unknown> | string;
+      if (typeof notesRaw === 'string') {
+        node.notes = notesRaw;
+      } else if (typeof notesRaw === 'object' && notesRaw !== null) {
+        // Handle notes object with 'plain' or 'text' property
+        if ('plain' in notesRaw && typeof notesRaw.plain === 'string') {
+          node.notes = notesRaw.plain;
+        } else if ('text' in notesRaw && typeof notesRaw.text === 'string') {
+          node.notes = notesRaw.text;
+        } else {
+          // Fallback: try to stringify, but avoid [object Object]
+          node.notes = JSON.stringify(notesRaw);
+        }
+      } else {
+        node.notes = String(notesRaw);
+      }
     }
 
     // Extract labels if available
@@ -214,7 +238,7 @@ export class XMindParser {
    * Generate unique ID
    */
   private generateId(): string {
-    return `node-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    return `node-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
   }
 }
 
