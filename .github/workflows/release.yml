@@ -391,7 +391,7 @@ jobs:
         id: check_npm_version
         run: |
           VERSION="${{ needs.sync-and-tag.outputs.version }}"
-          if npm view "${{ env.PLUGIN_NAME }}@$VERSION" version >/dev/null 2>&1; then
+          if npm view "@wllzhang/xmind-to-canvas@$VERSION" version >/dev/null 2>&1; then
             echo "⚠️  Version $VERSION already published to npm"
             echo "published=true" >> $GITHUB_OUTPUT
           else
@@ -434,9 +434,87 @@ jobs:
           VERSION="${{ needs.sync-and-tag.outputs.version }}"
           sleep 5  # Wait for npm registry to update
           
-          if npm view "${{ env.PLUGIN_NAME }}@$VERSION" version >/dev/null 2>&1; then
-            echo "✅ Successfully published ${{ env.PLUGIN_NAME }}@$VERSION to npm"
-            npm view "${{ env.PLUGIN_NAME }}@$VERSION"
+          if npm view "@wllzhang/xmind-to-canvas@$VERSION" version >/dev/null 2>&1; then
+            echo "✅ Successfully published @wllzhang/xmind-to-canvas@$VERSION to npm"
+            npm view "@wllzhang/xmind-to-canvas@$VERSION"
+          else
+            echo "⚠️  Warning: Could not verify publication (may need more time to propagate)"
+          fi
+
+  publish-github-packages:
+    runs-on: ubuntu-latest
+    needs: sync-and-tag
+    if: needs.sync-and-tag.outputs.tag_created == 'true'
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js for GitHub Packages
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          registry-url: 'https://npm.pkg.github.com'
+          scope: '@wllzhang'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Check if version already published to GitHub Packages
+        id: check_gh_version
+        run: |
+          VERSION="${{ needs.sync-and-tag.outputs.version }}"
+          if npm view "@wllzhang/xmind-to-canvas@$VERSION" --registry=https://npm.pkg.github.com version >/dev/null 2>&1; then
+            echo "⚠️  Version $VERSION already published to GitHub Packages"
+            echo "published=true" >> $GITHUB_OUTPUT
+          else
+            echo "✅ Version $VERSION not published, can proceed"
+            echo "published=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Build npm package
+        if: steps.check_gh_version.outputs.published == 'false'
+        run: npm run build:npm
+
+      - name: Verify npm build artifacts
+        if: steps.check_gh_version.outputs.published == 'false'
+        run: |
+          if [ ! -d "lib" ]; then
+            echo "❌ Error: lib directory not found after build"
+            exit 1
+          fi
+          
+          # Check required files
+          REQUIRED_FILES=("lib/index.js" "lib/index.d.ts")
+          for file in "${REQUIRED_FILES[@]}"; do
+            if [ ! -f "$file" ]; then
+              echo "❌ Error: Required file not found: $file"
+              exit 1
+            fi
+          done
+          
+          echo "✅ NPM build artifacts verified"
+
+      - name: Publish to GitHub Packages
+        if: steps.check_gh_version.outputs.published == 'false'
+        run: npm publish
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Verify GitHub Packages publication
+        if: steps.check_gh_version.outputs.published == 'false'
+        run: |
+          VERSION="${{ needs.sync-and-tag.outputs.version }}"
+          sleep 5  # Wait for registry to update
+          
+          if npm view "@wllzhang/xmind-to-canvas@$VERSION" --registry=https://npm.pkg.github.com version >/dev/null 2>&1; then
+            echo "✅ Successfully published @wllzhang/xmind-to-canvas@$VERSION to GitHub Packages"
+            npm view "@wllzhang/xmind-to-canvas@$VERSION" --registry=https://npm.pkg.github.com
           else
             echo "⚠️  Warning: Could not verify publication (may need more time to propagate)"
           fi
@@ -506,8 +584,8 @@ jobs:
 
   notify:
     runs-on: ubuntu-latest
-    needs: [create-release, publish-npm, deploy-pages]
-    if: always() && (needs.create-release.result != 'skipped' || needs.publish-npm.result != 'skipped')
+    needs: [create-release, publish-npm, publish-github-packages, deploy-pages]
+    if: always() && (needs.create-release.result != 'skipped' || needs.publish-npm.result != 'skipped' || needs.publish-github-packages.result != 'skipped')
     timeout-minutes: 5
 
     steps:
@@ -515,6 +593,7 @@ jobs:
         run: |
           CREATE_RELEASE_RESULT="${{ needs.create-release.result }}"
           PUBLISH_NPM_RESULT="${{ needs.publish-npm.result }}"
+          PUBLISH_GH_RESULT="${{ needs.publish-github-packages.result }}"
           DEPLOY_PAGES_RESULT="${{ needs.deploy-pages.result }}"
           
           echo "## Release Status" >> $GITHUB_STEP_SUMMARY
@@ -523,6 +602,7 @@ jobs:
           echo "|-----|--------|" >> $GITHUB_STEP_SUMMARY
           echo "| Create Release | $CREATE_RELEASE_RESULT |" >> $GITHUB_STEP_SUMMARY
           echo "| Publish to npm | $PUBLISH_NPM_RESULT |" >> $GITHUB_STEP_SUMMARY
+          echo "| Publish to GitHub Packages | $PUBLISH_GH_RESULT |" >> $GITHUB_STEP_SUMMARY
           echo "| Deploy Pages | $DEPLOY_PAGES_RESULT |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           
@@ -534,12 +614,15 @@ jobs:
           if [ "$PUBLISH_NPM_RESULT" == "failure" ]; then
             HAS_FAILURE=true
           fi
+          if [ "$PUBLISH_GH_RESULT" == "failure" ]; then
+            HAS_FAILURE=true
+          fi
           
           # Determine overall status
           if [ "$HAS_FAILURE" == "true" ]; then
             echo "❌ Release failed. Please check the logs." >> $GITHUB_STEP_SUMMARY
             exit 1
-          elif [ "$CREATE_RELEASE_RESULT" == "success" ] && ([ "$PUBLISH_NPM_RESULT" == "success" ] || [ "$PUBLISH_NPM_RESULT" == "skipped" ]); then
+          elif [ "$CREATE_RELEASE_RESULT" == "success" ] && ([ "$PUBLISH_NPM_RESULT" == "success" ] || [ "$PUBLISH_NPM_RESULT" == "skipped" ]) && ([ "$PUBLISH_GH_RESULT" == "success" ] || [ "$PUBLISH_GH_RESULT" == "skipped" ]); then
             echo "✅ Release completed successfully!" >> $GITHUB_STEP_SUMMARY
           else
             echo "⚠️  Release completed with warnings. Some jobs were skipped." >> $GITHUB_STEP_SUMMARY

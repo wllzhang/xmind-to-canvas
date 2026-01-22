@@ -45,13 +45,13 @@ Simply upload your `.xmind` file and download the converted `.canvas` file. All 
 Install as a dependency in your Node.js project:
 
 ```bash
-npm install xmind-to-canvas
+npm install @wllzhang/xmind-to-canvas
 ```
 
 **Quick Start:**
 
 ```javascript
-import { convertXMindToCanvas } from 'xmind-to-canvas';
+import { convertXMindToCanvas } from '@wllzhang/xmind-to-canvas';
 import fs from 'fs/promises';
 
 // Convert XMind file to Canvas format
