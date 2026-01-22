@@ -388,6 +388,11 @@ jobs:
           registry-url: 'https://registry.npmjs.org'
           cache: 'npm'
 
+      - name: Configure npm registry for @wllzhang scope
+        run: |
+          # Explicitly set scope registry to npmjs.org for publishing
+          npm config set @wllzhang:registry https://registry.npmjs.org/
+
       - name: Install dependencies
         run: npm ci
 
