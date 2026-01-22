@@ -141,9 +141,10 @@ export default class XMindToCanvasPlugin extends Plugin {
       if (canvasFile instanceof TFile) {
         await this.app.workspace.getLeaf(false).openFile(canvasFile);
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error converting XMind file:', error);
-      new Notice(`❌ Error: ${error.message}`);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      new Notice(`❌ Error: ${errorMessage}`);
     }
   }
 

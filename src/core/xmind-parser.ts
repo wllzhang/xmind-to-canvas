@@ -167,7 +167,7 @@ export class XMindParser {
     // Recursively process children
     // Handle different possible children fields
     // XMind Zen format uses children.attached for child topics
-    let children: any[] = [];
+    let children: Record<string, unknown>[] = [];
     
     if (topic.children) {
       if (topic.children.attached && Array.isArray(topic.children.attached)) {
