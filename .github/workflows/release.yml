@@ -396,10 +396,28 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Verify package.json version
+        id: verify_version
+        run: |
+          VERSION="${{ needs.sync-and-tag.outputs.version }}"
+          PACKAGE_VERSION=$(jq -r '.version' package.json)
+          
+          echo "Expected version: $VERSION"
+          echo "Package.json version: $PACKAGE_VERSION"
+          
+          if [ "$PACKAGE_VERSION" != "$VERSION" ]; then
+            echo "⚠️  Warning: Version mismatch, updating package.json"
+            jq --arg version "$VERSION" '.version = $version' package.json > package.json.tmp && mv package.json.tmp package.json
+            PACKAGE_VERSION=$(jq -r '.version' package.json)
+            echo "Updated package.json version: $PACKAGE_VERSION"
+          fi
+          
+          echo "VERSION=$PACKAGE_VERSION" >> $GITHUB_OUTPUT
+
       - name: Check if version already published
         id: check_npm_version
         run: |
-          VERSION="${{ needs.sync-and-tag.outputs.version }}"
+          VERSION="${{ steps.verify_version.outputs.VERSION }}"
           if npm view "@wllzhang/xmind-to-canvas@$VERSION" --registry=https://registry.npmjs.org/ version >/dev/null 2>&1; then
             echo "⚠️  Version $VERSION already published to npm"
             echo "published=true" >> $GITHUB_OUTPUT
@@ -440,7 +458,7 @@ jobs:
       - name: Verify npm publication
         if: steps.check_npm_version.outputs.published == 'false'
         run: |
-          VERSION="${{ needs.sync-and-tag.outputs.version }}"
+          VERSION="${{ steps.verify_version.outputs.VERSION }}"
           sleep 5  # Wait for npm registry to update
           
           if npm view "@wllzhang/xmind-to-canvas@$VERSION" --registry=https://registry.npmjs.org/ version >/dev/null 2>&1; then
