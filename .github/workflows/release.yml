@@ -261,7 +261,7 @@ jobs:
           VERSION="${{ steps.get_version.outputs.VERSION }}"
           
           # Create annotated tag
-          if git tag -a "$VERSION" -m "Release $VERSION" 2>&1; then
+          if git tag -a "$VERSION" -m "$VERSION" 2>&1; then
             git push origin "$VERSION"
             echo "created=true" >> $GITHUB_OUTPUT
             echo "✅ Tag $VERSION created and pushed"
@@ -350,7 +350,7 @@ jobs:
             main.js
             manifest.json
           tag_name: ${{ needs.sync-and-tag.outputs.version }}
-          name: Release ${{ needs.sync-and-tag.outputs.version }}
+          name: ${{ needs.sync-and-tag.outputs.version }}
           body: |
             ${{ steps.changelog.outputs.body }}
             
