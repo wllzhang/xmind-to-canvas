@@ -48,10 +48,13 @@ jobs:
       - name: Run linter
         run: npm run lint
 
-  sync-and-release:
+  sync-and-tag:
     runs-on: ubuntu-latest
     needs: check
     if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    outputs:
+      tag_created: ${{ steps.tag_check.outputs.created }}
+      version: ${{ steps.get_version.outputs.VERSION }}
 
     steps:
       - name: Checkout code
@@ -132,25 +135,24 @@ jobs:
         if: steps.check_versions.outputs.changed == 'true'
         run: npm run build
 
-      - name: Create release archive
-        if: steps.check_versions.outputs.changed == 'true'
-        run: |
-          mkdir -p release
-          cp main.js manifest.json release/
-          if [ -f styles.css ]; then
-            cp styles.css release/
-          fi
-          cd release
-          zip -r ../${{ env.PLUGIN_NAME }}-${{ steps.get_version.outputs.VERSION }}.zip .
-          cd ..
-
       - name: Create Git tag
         if: steps.check_versions.outputs.changed == 'true'
+        id: create_tag
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git tag -a "${{ steps.get_version.outputs.VERSION }}" -m "Release ${{ steps.get_version.outputs.VERSION }}"
           git push origin "${{ steps.get_version.outputs.VERSION }}"
+          echo "created=true" >> $GITHUB_OUTPUT
+
+      - name: Check if tag was created
+        id: tag_check
+        run: |
+          if [ "${{ steps.check_versions.outputs.changed }}" == "true" ] && [ "${{ steps.create_tag.outputs.created }}" == "true" ]; then
+            echo "created=true" >> $GITHUB_OUTPUT
+          else
+            echo "created=false" >> $GITHUB_OUTPUT
+          fi
 
       - name: Commit version changes
         if: steps.check_versions.outputs.changed == 'true'
@@ -166,36 +168,68 @@ jobs:
             echo "No version changes to commit"
           fi
 
+  create-release:
+    runs-on: ubuntu-latest
+    needs: sync-and-tag
+    if: needs.sync-and-tag.outputs.tag_created == 'true'
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build plugin
+        run: npm run build
+
       - name: Create Release
-        if: steps.check_versions.outputs.changed == 'true'
         uses: softprops/action-gh-release@v1
         with:
           files: |
-            ${{ env.PLUGIN_NAME }}-${{ steps.get_version.outputs.VERSION }}.zip
             main.js
             manifest.json
-          tag_name: ${{ steps.get_version.outputs.VERSION }}
-          name: ${{ steps.get_version.outputs.VERSION }}
+          tag_name: ${{ needs.sync-and-tag.outputs.version }}
+          name: ${{ needs.sync-and-tag.outputs.version }}
           generate_release_notes: true
           draft: false
           prerelease: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build npm package
-        if: steps.check_versions.outputs.changed == 'true'
-        run: npm run build:npm
+  publish-npm:
+    runs-on: ubuntu-latest
+    needs: sync-and-tag
+    if: needs.sync-and-tag.outputs.tag_created == 'true'
 
-      - name: Setup npm for publishing
-        if: steps.check_versions.outputs.changed == 'true'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Setup Node.js
         uses: actions/setup-node@v3
         with:
           node-version: '18'
           registry-url: 'https://registry.npmjs.org'
           cache: 'npm'
 
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build npm package
+        run: npm run build:npm
+
       - name: Publish to npm
-        if: steps.check_versions.outputs.changed == 'true'
         run: npm publish --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
