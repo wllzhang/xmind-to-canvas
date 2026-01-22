@@ -5,10 +5,14 @@ on:
     branches:
       - main
       - master
+    paths-ignore:
+      - .github/workflows/release.yml
   pull_request:
     branches:
       - main
       - master
+    paths-ignore:
+      - .github/workflows/release.yml
   workflow_dispatch:
 
 permissions:
@@ -453,6 +457,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup Node.js for GitHub Packages
         uses: actions/setup-node@v4
@@ -461,14 +467,34 @@ jobs:
           registry-url: 'https://npm.pkg.github.com'
           scope: '@wllzhang'
           cache: 'npm'
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install dependencies
         run: npm ci
 
+      - name: Verify package.json version
+        id: verify_version
+        run: |
+          VERSION="${{ needs.sync-and-tag.outputs.version }}"
+          PACKAGE_VERSION=$(jq -r '.version' package.json)
+          
+          echo "Expected version: $VERSION"
+          echo "Package.json version: $PACKAGE_VERSION"
+          
+          if [ "$PACKAGE_VERSION" != "$VERSION" ]; then
+            echo "⚠️  Warning: Version mismatch, updating package.json"
+            jq --arg version "$VERSION" '.version = $version' package.json > package.json.tmp && mv package.json.tmp package.json
+            PACKAGE_VERSION=$(jq -r '.version' package.json)
+            echo "Updated package.json version: $PACKAGE_VERSION"
+          fi
+          
+          echo "VERSION=$PACKAGE_VERSION" >> $GITHUB_OUTPUT
+
       - name: Check if version already published to GitHub Packages
         id: check_gh_version
         run: |
-          VERSION="${{ needs.sync-and-tag.outputs.version }}"
+          VERSION="${{ steps.verify_version.outputs.VERSION }}"
           if npm view "@wllzhang/xmind-to-canvas@$VERSION" --registry=https://npm.pkg.github.com version >/dev/null 2>&1; then
             echo "⚠️  Version $VERSION already published to GitHub Packages"
             echo "published=true" >> $GITHUB_OUTPUT
@@ -509,7 +535,7 @@ jobs:
       - name: Verify GitHub Packages publication
         if: steps.check_gh_version.outputs.published == 'false'
         run: |
-          VERSION="${{ needs.sync-and-tag.outputs.version }}"
+          VERSION="${{ steps.verify_version.outputs.VERSION }}"
           sleep 5  # Wait for registry to update
           
           if npm view "@wllzhang/xmind-to-canvas@$VERSION" --registry=https://npm.pkg.github.com version >/dev/null 2>&1; then
