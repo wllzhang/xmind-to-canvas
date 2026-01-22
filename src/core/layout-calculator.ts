@@ -24,7 +24,7 @@ export class LayoutCalculator {
   /**
    * Calculate layout for XMind data
    */
-  async calculate(xmindData: XMindWorkbook, options: ConversionOptions): Promise<any> {
+  async calculate(xmindData: XMindWorkbook, options: ConversionOptions): Promise<ElkNode> {
     try {
       // Get the first sheet (most XMind files have one sheet)
       if (!xmindData.sheets || xmindData.sheets.length === 0) {
@@ -41,9 +41,10 @@ export class LayoutCalculator {
       const layoutedGraph = await this.elk.layout(elkGraph);
 
       return layoutedGraph;
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error calculating layout:', error);
-      throw new Error(`Failed to calculate layout: ${error.message}`);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      throw new Error(`Failed to calculate layout: ${errorMessage}`);
     }
   }
 

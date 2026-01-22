@@ -30,7 +30,7 @@ export class XMindParser {
       const contentText = await contentFile.async('text');
       
       // Parse based on format
-      let workbookData: any;
+      let workbookData: unknown;
       if (isJson) {
         workbookData = JSON.parse(contentText);
       } else {
@@ -64,9 +64,10 @@ export class XMindParser {
       }
       
       return { sheets, images };
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error parsing XMind file:', error);
-      throw new Error(`Failed to parse XMind file: ${error?.message || 'Unknown error'}`);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      throw new Error(`Failed to parse XMind file: ${errorMessage}`);
     }
   }
 
@@ -121,7 +122,7 @@ export class XMindParser {
   /**
    * Extract nodes from XMind topic recursively
    */
-  private extractNodes(topic: any, parentId?: string): XMindNode {
+  private extractNodes(topic: Record<string, unknown>, parentId?: string): XMindNode {
     // Handle different possible title fields
     const title = topic.title || topic.label || topic.name || 'Untitled';
     
@@ -185,7 +186,7 @@ export class XMindParser {
     }
     
     if (children.length > 0) {
-      node.children = children.map((child: any) => 
+      node.children = children.map((child: Record<string, unknown>) => 
         this.extractNodes(child, node.id)
       );
     } else {
