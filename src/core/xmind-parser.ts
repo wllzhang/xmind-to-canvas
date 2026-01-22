@@ -131,11 +131,18 @@ export class XMindParser {
       title = titleRaw;
     } else if (typeof titleRaw === 'object' && titleRaw !== null) {
       const titleObj = titleRaw as Record<string, unknown>;
-      title = (typeof titleObj.text === 'string' ? titleObj.text : 
-               typeof titleObj.plain === 'string' ? titleObj.plain :
-               String(titleObj));
+      if (typeof titleObj.text === 'string') {
+        title = titleObj.text;
+      } else if (typeof titleObj.plain === 'string') {
+        title = titleObj.plain;
+      } else {
+        // Fallback: try to find any string property or use JSON.stringify
+        const stringValue = Object.values(titleObj).find(v => typeof v === 'string') as string | undefined;
+        title = stringValue || JSON.stringify(titleObj);
+      }
     } else {
-      title = String(titleRaw);
+      // For non-string, non-object values, convert safely
+      title = titleRaw === null || titleRaw === undefined ? 'Untitled' : String(titleRaw);
     }
     
     // Ensure id is a string
