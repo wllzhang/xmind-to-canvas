@@ -1,8 +1,7 @@
 # XMind to Canvas
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Version](https://img.shields.io/badge/version-1.0.6-blue.svg)](https://github.com/wllzhang/xmind-to-canvas/releases)
-[![npm version](https://img.shields.io/npm/v/xmind-to-canvas.svg)](https://www.npmjs.com/package/xmind-to-canvas)
+[![npm version](https://img.shields.io/npm/v/@wllzhang/xmind-to-canvas.svg)](https://www.npmjs.com/package/@wllzhang/xmind-to-canvas)
 [![Build Status](https://github.com/wllzhang/xmind-to-canvas/actions/workflows/release.yml/badge.svg)](https://github.com/wllzhang/xmind-to-canvas/actions/workflows/release.yml)
 
 Convert XMind mind map files to JSON Canvas format for seamless integration in Obsidian.
