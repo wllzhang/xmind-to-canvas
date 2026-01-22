@@ -1,6 +1,6 @@
 {
   "name": "obsidian-xmind-to-canvas",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "description": "Obsidian plugin to convert XMind files to JSON Canvas format",
   "main": "main.js",
   "type": "module",
