@@ -45,6 +45,10 @@
     "type": "git",
     "url": "https://github.com/wllzhang/xmind-to-canvas.git"
   },
+  "publishConfig": {
+    "registry": "https://registry.npmjs.org/",
+    "access": "public"
+  },
   "devDependencies": {
     "@rollup/plugin-commonjs": "^25.0.7",
     "@rollup/plugin-json": "^6.1.0",
