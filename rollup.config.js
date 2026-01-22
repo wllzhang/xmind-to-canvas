@@ -3,10 +3,12 @@ import { nodeResolve } from '@rollup/plugin-node-resolve';
 import commonjs from '@rollup/plugin-commonjs';
 import json from '@rollup/plugin-json';
 import builtins from 'builtin-modules';
+import terser from '@rollup/plugin-terser';
 
 const isProd = (process.env.BUILD === 'production');
 
-export default {
+// Obsidian plugin build
+const obsidianBuild = {
   input: 'src/main.ts',
   output: {
     dir: '.',
@@ -39,3 +41,31 @@ export default {
     json(),
   ]
 };
+
+// Web core library build (UMD format for browser usage)
+const webBuild = {
+  input: 'src/core/index.ts',
+  output: {
+    file: 'web/xmind-to-canvas.umd.js',
+    format: 'umd',
+    name: 'XMindToCanvas',
+    sourcemap: !isProd,
+    globals: {
+      'jszip': 'JSZip',
+      'elkjs/lib/elk.bundled': 'ELK'
+    }
+  },
+  external: ['jszip', 'elkjs/lib/elk.bundled'],
+  plugins: [
+    typescript({
+      declaration: false,
+      declarationMap: false,
+    }),
+    nodeResolve({ browser: true }),
+    commonjs(),
+    json(),
+    isProd && terser(),
+  ].filter(Boolean)
+};
+
+export default [obsidianBuild, webBuild];

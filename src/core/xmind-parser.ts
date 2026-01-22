@@ -1,4 +1,4 @@
-import { XMindWorkbook, XMindSheet, XMindNode } from './types';
+import { XMindWorkbook, XMindSheet, XMindNode, ImageResource } from './types';
 import JSZip from 'jszip';
 
 /**
@@ -39,6 +39,9 @@ export class XMindParser {
         throw new Error('XML format (.xmind) is not yet supported. Please use XMind Zen format.');
       }
       
+      // Extract images from resources folder
+      const images = await this.extractImages(zip);
+      
       // Convert to our internal structure
       const sheets: XMindSheet[] = [];
       
@@ -60,11 +63,59 @@ export class XMindParser {
         throw new Error('No valid sheets found in XMind file');
       }
       
-      return { sheets };
+      return { sheets, images };
     } catch (error: any) {
       console.error('Error parsing XMind file:', error);
       throw new Error(`Failed to parse XMind file: ${error?.message || 'Unknown error'}`);
     }
+  }
+
+  /**
+   * Extract images from the resources folder in the XMind ZIP
+   */
+  private async extractImages(zip: JSZip): Promise<Map<string, ImageResource>> {
+    const images = new Map<string, ImageResource>();
+    
+    // Find all files in resources folder
+    const resourceFiles = Object.keys(zip.files).filter(
+      path => path.startsWith('resources/') && !path.endsWith('/')
+    );
+    
+    for (const filePath of resourceFiles) {
+      const file = zip.file(filePath);
+      if (file) {
+        try {
+          const data = await file.async('arraybuffer');
+          const name = filePath.replace('resources/', '');
+          const mimeType = this.getMimeType(name);
+          
+          if (mimeType) {
+            images.set(name, { name, data, mimeType });
+          }
+        } catch (error) {
+          console.warn(`Failed to extract image: ${filePath}`, error);
+        }
+      }
+    }
+    
+    return images;
+  }
+
+  /**
+   * Get MIME type from filename
+   */
+  private getMimeType(filename: string): string | null {
+    const ext = filename.toLowerCase().split('.').pop();
+    const mimeTypes: Record<string, string> = {
+      'png': 'image/png',
+      'jpg': 'image/jpeg',
+      'jpeg': 'image/jpeg',
+      'gif': 'image/gif',
+      'webp': 'image/webp',
+      'svg': 'image/svg+xml',
+      'bmp': 'image/bmp',
+    };
+    return mimeTypes[ext || ''] || null;
   }
 
   /**
@@ -95,6 +146,21 @@ export class XMindParser {
     // Extract markers if available
     if (topic.markers && Array.isArray(topic.markers)) {
       node.markers = topic.markers;
+    }
+
+    // Extract image if available
+    // XMind stores images as: { "src": "xap:resources/image.png", "width": 200, "height": 150 }
+    if (topic.image && topic.image.src) {
+      const imageSrc = topic.image.src;
+      // Extract the filename from "xap:resources/filename.png" or "resources/filename.png"
+      const match = imageSrc.match(/(?:xap:)?resources\/(.+)$/);
+      if (match) {
+        node.image = {
+          src: match[1],  // Store just the filename
+          width: topic.image.width,
+          height: topic.image.height,
+        };
+      }
     }
 
     // Recursively process children
@@ -137,3 +203,4 @@ export class XMindParser {
     return `node-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
   }
 }
+

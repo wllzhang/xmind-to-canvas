@@ -1,253 +1,10 @@
 /**
  * XMind to Canvas - Web Application
- * 完全在浏览器端运行的思维导图转换器
+ * Uses the shared core library for conversion logic
  */
 
 // ========================================
-// XMind Parser
-// ========================================
-
-class XMindParser {
-  async parse(arrayBuffer) {
-    try {
-      const zip = await JSZip.loadAsync(arrayBuffer);
-      
-      let contentFile = zip.file('content.json');
-      let isJson = true;
-      
-      if (!contentFile) {
-        contentFile = zip.file('content.xml');
-        isJson = false;
-      }
-      
-      if (!contentFile) {
-        throw new Error('无法找到 content.json 或 content.xml 文件');
-      }
-      
-      const contentText = await contentFile.async('text');
-      
-      let workbookData;
-      if (isJson) {
-        workbookData = JSON.parse(contentText);
-      } else {
-        throw new Error('XML 格式暂不支持，请使用 XMind Zen 格式');
-      }
-      
-      const sheets = [];
-      
-      if (workbookData && Array.isArray(workbookData)) {
-        for (const sheet of workbookData) {
-          const rootTopic = sheet.rootTopic;
-          
-          if (rootTopic) {
-            sheets.push({
-              id: sheet.id || this.generateId(),
-              title: sheet.title || '未命名画布',
-              rootTopic: this.extractNodes(rootTopic),
-            });
-          }
-        }
-      }
-      
-      if (sheets.length === 0) {
-        throw new Error('未找到有效的思维导图数据');
-      }
-      
-      return { sheets };
-    } catch (error) {
-      console.error('解析 XMind 文件失败:', error);
-      throw new Error(`解析失败: ${error.message}`);
-    }
-  }
-
-  extractNodes(topic, parentId) {
-    const title = topic.title || topic.label || topic.name || '未命名';
-    
-    const node = {
-      id: topic.id || this.generateId(),
-      title: String(title),
-      children: [],
-    };
-
-    if (topic.notes) {
-      node.notes = topic.notes.plain || topic.notes;
-    }
-
-    if (topic.labels && Array.isArray(topic.labels)) {
-      node.labels = topic.labels;
-    }
-
-    // Handle different possible children fields
-    let children = [];
-    
-    if (topic.children) {
-      if (topic.children.attached && Array.isArray(topic.children.attached)) {
-        children = topic.children.attached;
-      } else if (Array.isArray(topic.children)) {
-        children = topic.children;
-      }
-    } else if (topic.attached && Array.isArray(topic.attached)) {
-      children = topic.attached;
-    } else if (topic.topics && Array.isArray(topic.topics)) {
-      children = topic.topics;
-    }
-    
-    if (children.length > 0) {
-      node.children = children.map((child) => this.extractNodes(child, node.id));
-    }
-
-    return node;
-  }
-
-  generateId() {
-    return `node-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-  }
-}
-
-// ========================================
-// Layout Calculator (using ELK.js)
-// ========================================
-
-class LayoutCalculator {
-  constructor() {
-    this.elk = new ELK();
-  }
-
-  async calculate(xmindData, options) {
-    try {
-      if (!xmindData.sheets || xmindData.sheets.length === 0) {
-        throw new Error('未找到画布数据');
-      }
-
-      const sheet = xmindData.sheets[0];
-      const rootTopic = sheet.rootTopic;
-
-      const elkGraph = this.convertToELKGraph(rootTopic, options);
-      const layoutedGraph = await this.elk.layout(elkGraph);
-
-      return layoutedGraph;
-    } catch (error) {
-      console.error('布局计算失败:', error);
-      throw new Error(`布局计算失败: ${error.message}`);
-    }
-  }
-
-  convertToELKGraph(rootNode, options) {
-    const graph = {
-      id: 'root',
-      layoutOptions: {
-        'elk.algorithm': options.layoutAlgorithm || 'mrtree',
-        'elk.direction': options.direction || 'RIGHT',
-        'elk.spacing.nodeNode': String(options.nodeSpacing || 60),
-        'elk.layered.spacing.nodeNodeBetweenLayers': String(options.layerSpacing || 120),
-      },
-      children: [],
-      edges: [],
-    };
-
-    const { nodes, edges } = this.flattenNodeTree(rootNode, options);
-    
-    graph.children = nodes;
-    graph.edges = edges;
-
-    return graph;
-  }
-
-  flattenNodeTree(node, options, parentId, isRoot = true) {
-    const nodes = [];
-    const edges = [];
-
-    const textLength = node.title.length;
-    const width = Math.max(options.defaultNodeWidth || 160, Math.min(textLength * 10 + 40, 300));
-    const height = options.defaultNodeHeight || 50;
-
-    const elkNode = {
-      id: node.id,
-      width,
-      height,
-      labels: [{ text: node.title }],
-      isRoot,
-    };
-
-    nodes.push(elkNode);
-
-    if (parentId) {
-      edges.push({
-        id: `edge-${parentId}-${node.id}`,
-        sources: [parentId],
-        targets: [node.id],
-      });
-    }
-
-    if (node.children && node.children.length > 0) {
-      for (const child of node.children) {
-        const childResult = this.flattenNodeTree(child, options, node.id, false);
-        nodes.push(...childResult.nodes);
-        edges.push(...childResult.edges);
-      }
-    }
-
-    return { nodes, edges };
-  }
-}
-
-// ========================================
-// Canvas Generator
-// ========================================
-
-class CanvasGenerator {
-  generate(layoutedGraph) {
-    const nodes = [];
-    const edges = [];
-
-    if (layoutedGraph.children) {
-      for (const elkNode of layoutedGraph.children) {
-        nodes.push(this.convertNode(elkNode));
-      }
-    }
-
-    if (layoutedGraph.edges) {
-      for (const elkEdge of layoutedGraph.edges) {
-        edges.push(this.convertEdge(elkEdge));
-      }
-    }
-
-    return { nodes, edges };
-  }
-
-  convertNode(elkNode) {
-    const title = elkNode.labels && elkNode.labels.length > 0
-      ? elkNode.labels[0].text
-      : '未命名';
-
-    return {
-      id: elkNode.id,
-      type: 'text',
-      x: Math.round(elkNode.x || 0),
-      y: Math.round(elkNode.y || 0),
-      width: Math.round(elkNode.width || 160),
-      height: Math.round(elkNode.height || 50),
-      text: `### ${title}`,
-      isRoot: elkNode.isRoot,
-    };
-  }
-
-  convertEdge(elkEdge) {
-    const fromNode = Array.isArray(elkEdge.sources) ? elkEdge.sources[0] : elkEdge.sources;
-    const toNode = Array.isArray(elkEdge.targets) ? elkEdge.targets[0] : elkEdge.targets;
-
-    return {
-      id: elkEdge.id,
-      fromNode,
-      toNode,
-      fromSide: 'right',
-      toSide: 'left',
-    };
-  }
-}
-
-// ========================================
-// Canvas Renderer (SVG)
+// Canvas Renderer (SVG) - Web-specific
 // ========================================
 
 class CanvasRenderer {
@@ -304,8 +61,9 @@ class CanvasRenderer {
     this.container.style.cursor = 'grab';
   }
 
-  render(canvasData) {
+  render(canvasData, images) {
     this.canvasData = canvasData;
+    this.images = images || new Map();
     this.svg.innerHTML = '';
 
     // Calculate bounds
@@ -392,7 +150,8 @@ class CanvasRenderer {
 
   createNodeElement(node) {
     const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
-    g.setAttribute('class', `canvas-node${node.isRoot ? ' root' : ''}`);
+    const isRoot = node.id === 'root' || !node.id.includes('-');
+    g.setAttribute('class', `canvas-node${isRoot ? ' root' : ''}${node.type === 'file' ? ' image-node' : ''}`);
     g.setAttribute('transform', `translate(${node.x}, ${node.y})`);
 
     // Rectangle background
@@ -402,15 +161,49 @@ class CanvasRenderer {
     rect.setAttribute('rx', 8);
     g.appendChild(rect);
 
-    // Text
-    const title = node.text.replace('### ', '');
-    const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-    text.setAttribute('x', node.width / 2);
-    text.setAttribute('y', node.height / 2);
-    text.textContent = this.truncateText(title, node.width - 20);
-    g.appendChild(text);
+    // Handle image nodes
+    if (node.type === 'file' && node.file) {
+      const imageData = this.images.get(node.file);
+      if (imageData) {
+        const image = document.createElementNS('http://www.w3.org/2000/svg', 'image');
+        image.setAttribute('x', 5);
+        image.setAttribute('y', 5);
+        image.setAttribute('width', node.width - 10);
+        image.setAttribute('height', node.height - 10);
+        image.setAttribute('preserveAspectRatio', 'xMidYMid meet');
+        
+        // Convert ArrayBuffer to base64 data URL
+        const base64 = this.arrayBufferToBase64(imageData.data);
+        image.setAttribute('href', `data:${imageData.mimeType};base64,${base64}`);
+        g.appendChild(image);
+      } else {
+        // Show placeholder for missing image
+        const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        text.setAttribute('x', node.width / 2);
+        text.setAttribute('y', node.height / 2);
+        text.textContent = '📷 ' + node.file;
+        g.appendChild(text);
+      }
+    } else {
+      // Text node
+      const title = node.text ? node.text.replace('### ', '') : 'Untitled';
+      const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+      text.setAttribute('x', node.width / 2);
+      text.setAttribute('y', node.height / 2);
+      text.textContent = this.truncateText(title, node.width - 20);
+      g.appendChild(text);
+    }
 
     return g;
+  }
+
+  arrayBufferToBase64(buffer) {
+    let binary = '';
+    const bytes = new Uint8Array(buffer);
+    for (let i = 0; i < bytes.byteLength; i++) {
+      binary += String.fromCharCode(bytes[i]);
+    }
+    return btoa(binary);
   }
 
   truncateText(text, maxWidth) {
@@ -471,11 +264,13 @@ class CanvasRenderer {
 
 class App {
   constructor() {
-    this.parser = new XMindParser();
-    this.layoutCalculator = new LayoutCalculator();
-    this.canvasGenerator = new CanvasGenerator();
+    // Use the core library classes
+    this.parser = new XMindToCanvas.XMindParser();
+    this.layoutCalculator = new XMindToCanvas.LayoutCalculator();
+    this.canvasGenerator = new XMindToCanvas.CanvasGenerator();
     this.renderer = null;
     this.canvasData = null;
+    this.xmindData = null;
     this.fileName = '';
     
     this.initElements();
@@ -492,6 +287,7 @@ class App {
     this.nodeCountEl = document.getElementById('nodeCount');
     this.edgeCountEl = document.getElementById('edgeCount');
     this.sheetCountEl = document.getElementById('sheetCount');
+    this.imageCountEl = document.getElementById('imageCount');
   }
 
   initEvents() {
@@ -541,10 +337,10 @@ class App {
     try {
       const arrayBuffer = await file.arrayBuffer();
       
-      // Parse XMind
-      const xmindData = await this.parser.parse(arrayBuffer);
+      // Parse XMind using core library
+      this.xmindData = await this.parser.parse(arrayBuffer);
       
-      // Calculate layout
+      // Calculate layout using core library
       const options = {
         layoutAlgorithm: 'mrtree',
         direction: 'RIGHT',
@@ -553,20 +349,25 @@ class App {
         defaultNodeWidth: 160,
         defaultNodeHeight: 50,
       };
-      const layoutData = await this.layoutCalculator.calculate(xmindData, options);
+      const layoutData = await this.layoutCalculator.calculate(this.xmindData, options);
       
-      // Generate canvas
+      // Set up image path generator for web (images are referenced by filename)
+      this.canvasGenerator.setImagePathGenerator((imageName) => imageName);
+      
+      // Generate canvas using core library
       this.canvasData = this.canvasGenerator.generate(layoutData);
       
       // Update UI
-      this.updateStats(xmindData.sheets.length);
+      this.updateStats();
       this.showPreview();
       
       // Initialize renderer
       const container = document.getElementById('canvasContainer');
       const svg = document.getElementById('canvasSvg');
       this.renderer = new CanvasRenderer(container, svg);
-      this.renderer.render(this.canvasData);
+      
+      // Pass images to renderer for display
+      this.renderer.render(this.canvasData, this.xmindData.images);
       
     } catch (error) {
       alert('转换失败: ' + error.message);
@@ -576,11 +377,16 @@ class App {
     }
   }
 
-  updateStats(sheetCount) {
+  updateStats() {
     this.fileNameEl.textContent = this.fileName;
     this.nodeCountEl.textContent = this.canvasData.nodes.length;
     this.edgeCountEl.textContent = this.canvasData.edges.length;
-    this.sheetCountEl.textContent = sheetCount;
+    this.sheetCountEl.textContent = this.xmindData.sheets.length;
+    
+    // Update image count if element exists
+    if (this.imageCountEl) {
+      this.imageCountEl.textContent = this.xmindData.images ? this.xmindData.images.size : 0;
+    }
   }
 
   showPreview() {
@@ -601,17 +407,19 @@ class App {
     this.previewSection.classList.add('hidden');
     this.fileInput.value = '';
     this.canvasData = null;
+    this.xmindData = null;
     this.renderer = null;
   }
 
   download() {
     if (!this.canvasData) return;
 
-    // Create clean canvas data without isRoot property
+    // Create clean canvas data
     const cleanData = {
       nodes: this.canvasData.nodes.map(node => {
-        const { isRoot, ...cleanNode } = node;
-        return cleanNode;
+        // For web download, keep the file reference but note that images won't work in Obsidian
+        // unless user manually copies images
+        return { ...node };
       }),
       edges: this.canvasData.edges,
     };
@@ -634,4 +442,3 @@ class App {
 document.addEventListener('DOMContentLoaded', () => {
   window.app = new App();
 });
-

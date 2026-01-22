@@ -1,5 +1,15 @@
 import ELK, { ElkNode, ElkExtendedEdge } from 'elkjs/lib/elk.bundled';
-import { XMindWorkbook, XMindNode, ConversionOptions, ELKGraph } from './types';
+import { XMindWorkbook, XMindNode, ConversionOptions } from './types';
+
+/**
+ * Extended ELK node with image properties
+ */
+export interface ExtendedElkNode extends ElkNode {
+  hasImage?: boolean;
+  imageSrc?: string;
+  imageWidth?: number;
+  imageHeight?: number;
+}
 
 /**
  * Layout calculator using ELK.js
@@ -31,7 +41,7 @@ export class LayoutCalculator {
       const layoutedGraph = await this.elk.layout(elkGraph);
 
       return layoutedGraph;
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error calculating layout:', error);
       throw new Error(`Failed to calculate layout: ${error.message}`);
     }
@@ -69,22 +79,39 @@ export class LayoutCalculator {
     node: XMindNode,
     options: ConversionOptions,
     parentId?: string
-  ): { nodes: ElkNode[]; edges: ElkExtendedEdge[] } {
-    const nodes: ElkNode[] = [];
+  ): { nodes: ExtendedElkNode[]; edges: ElkExtendedEdge[] } {
+    const nodes: ExtendedElkNode[] = [];
     const edges: ElkExtendedEdge[] = [];
 
     // Estimate text width and height
     const textLength = node.title.length;
-    const width = Math.max(options.defaultNodeWidth || 200, Math.min(textLength * 8, 400));
-    const height = options.defaultNodeHeight || 80;
+    let width = Math.max(options.defaultNodeWidth || 200, Math.min(textLength * 8, 400));
+    let height = options.defaultNodeHeight || 80;
 
-    // Create current node
-    const elkNode: ElkNode = {
+    // If node has an image, adjust size based on image dimensions
+    if (node.image) {
+      const imgWidth = node.image.width || 200;
+      const imgHeight = node.image.height || 150;
+      // Use a reasonable maximum size
+      width = Math.min(Math.max(width, imgWidth), 500);
+      height = Math.max(height, imgHeight + 40); // Extra space for title
+    }
+
+    // Create current node with custom properties for image info
+    const elkNode: ExtendedElkNode = {
       id: node.id,
       width,
       height,
       labels: [{ text: node.title }],
     };
+
+    // Store image info in the node for later use
+    if (node.image) {
+      elkNode.hasImage = true;
+      elkNode.imageSrc = node.image.src;
+      elkNode.imageWidth = node.image.width;
+      elkNode.imageHeight = node.image.height;
+    }
 
     nodes.push(elkNode);
 
@@ -109,3 +136,4 @@ export class LayoutCalculator {
     return { nodes, edges };
   }
 }
+

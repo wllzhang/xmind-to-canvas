@@ -5,10 +5,16 @@
   "main": "main.js",
   "type": "module",
   "scripts": {
-    "dev": "rollup --config rollup.config.js -w",
-    "build": "rollup --config rollup.config.js --environment BUILD:production",
+    "sync-versions": "node scripts/sync-versions.js",
+    "dev": "npm run sync-versions && rollup --config rollup.config.js -w",
+    "build": "npm run sync-versions && rollup --config rollup.config.js --environment BUILD:production",
+    "build:web": "npm run sync-versions && rollup --config rollup.config.js --environment BUILD:production && echo 'Web bundle ready at web/xmind-to-canvas.umd.js'",
+    "serve:web": "npx serve web -p 3000",
     "lint": "eslint src --ext .ts",
-    "lint:fix": "eslint src --ext .ts --fix"
+    "lint:fix": "eslint src --ext .ts --fix",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage"
   },
   "keywords": [
     "obsidian",
@@ -23,15 +29,18 @@
     "@rollup/plugin-commonjs": "^25.0.7",
     "@rollup/plugin-json": "^6.1.0",
     "@rollup/plugin-node-resolve": "^15.2.3",
+    "@rollup/plugin-terser": "0.4.4",
     "@rollup/plugin-typescript": "^11.1.6",
     "@typescript-eslint/eslint-plugin": "^6.19.0",
     "@typescript-eslint/parser": "^6.19.0",
+    "@vitest/coverage-v8": "^2.1.0",
     "builtin-modules": "^3.3.0",
     "eslint": "^8.56.0",
     "obsidian": "latest",
     "rollup": "^4.9.6",
     "tslib": "^2.6.2",
-    "typescript": "^5.3.3"
+    "typescript": "^5.3.3",
+    "vitest": "^2.1.0"
   },
   "dependencies": {
     "@types/jszip": "3.4.0",

@@ -1,8 +1,12 @@
 import { Plugin, TFile, Notice, Menu } from 'obsidian';
-import { XMindParser } from './xmind-parser';
-import { LayoutCalculator } from './layout-calculator';
-import { CanvasGenerator } from './canvas-generator';
-import { ConversionOptions } from './types';
+import { 
+  XMindParser, 
+  LayoutCalculator, 
+  CanvasGenerator, 
+  ConversionOptions, 
+  ImageResource,
+  DEFAULT_OPTIONS 
+} from './core';
 
 export default class XMindToCanvasPlugin extends Plugin {
   private xmindParser: XMindParser;
@@ -82,15 +86,27 @@ export default class XMindToCanvasPlugin extends Plugin {
       // Parse XMind file
       const xmindData = await this.xmindParser.parse(arrayBuffer);
 
+      // Create attachments folder for images if there are any
+      const baseName = file.basename;
+      const parentPath = file.parent?.path || '';
+      const imagesFolderPath = parentPath 
+        ? `${parentPath}/${baseName}_images`
+        : `${baseName}_images`;
+
+      // Save images to vault if any exist
+      const savedImagePaths = new Map<string, string>();
+      if (xmindData.images && xmindData.images.size > 0) {
+        await this.saveImagesToVault(xmindData.images, imagesFolderPath, savedImagePaths);
+        new Notice(`📷 Saved ${xmindData.images.size} images`);
+      }
+
+      // Set up image path generator for the canvas
+      this.canvasGenerator.setImagePathGenerator((imageName: string) => {
+        return savedImagePaths.get(imageName) || `${imagesFolderPath}/${imageName}`;
+      });
+
       // Default conversion options
-      const options: ConversionOptions = {
-        layoutAlgorithm: 'mrtree',
-        direction: 'RIGHT',
-        nodeSpacing: 80,
-        layerSpacing: 150,
-        defaultNodeWidth: 200,
-        defaultNodeHeight: 80,
-      };
+      const options: ConversionOptions = { ...DEFAULT_OPTIONS };
 
       // Calculate layout
       const layoutData = await this.layoutCalculator.calculate(xmindData, options);
@@ -125,9 +141,45 @@ export default class XMindToCanvasPlugin extends Plugin {
       if (canvasFile instanceof TFile) {
         await this.app.workspace.getLeaf(false).openFile(canvasFile);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error converting XMind file:', error);
       new Notice(`❌ Error: ${error.message}`);
+    }
+  }
+
+  /**
+   * Save extracted images to the vault
+   */
+  private async saveImagesToVault(
+    images: Map<string, ImageResource>,
+    folderPath: string,
+    savedPaths: Map<string, string>
+  ) {
+    // Create the images folder if it doesn't exist
+    const folder = this.app.vault.getAbstractFileByPath(folderPath);
+    if (!folder) {
+      await this.app.vault.createFolder(folderPath);
+    }
+
+    // Save each image
+    for (const [name, imageResource] of images) {
+      try {
+        const imagePath = `${folderPath}/${name}`;
+        
+        // Check if image already exists
+        const existingImage = this.app.vault.getAbstractFileByPath(imagePath);
+        if (existingImage instanceof TFile) {
+          // Update existing image
+          await this.app.vault.modifyBinary(existingImage, imageResource.data);
+        } else {
+          // Create new image file
+          await this.app.vault.createBinary(imagePath, imageResource.data);
+        }
+        
+        savedPaths.set(name, imagePath);
+      } catch (error) {
+        console.warn(`Failed to save image ${name}:`, error);
+      }
     }
   }
 }

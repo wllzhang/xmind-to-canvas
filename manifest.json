@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "minAppVersion": "0.15.0",
   "description": "Convert XMind files to JSON Canvas format for seamless mind map integration in Obsidian",
-  "author": "Your Name",
-  "authorUrl": "https://github.com/yourusername",
+  "author": "wllzhang",
+  "authorUrl": "https://github.com/wllzhang",
   "isDesktopOnly": false
 }
