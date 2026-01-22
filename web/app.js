@@ -411,30 +411,67 @@ class App {
     this.renderer = null;
   }
 
-  download() {
+  async download() {
     if (!this.canvasData) return;
+
+    // Check if there are images
+    const hasImages = this.xmindData?.images && this.xmindData.images.size > 0;
 
     // Create clean canvas data
     const cleanData = {
       nodes: this.canvasData.nodes.map(node => {
-        // For web download, keep the file reference but note that images won't work in Obsidian
-        // unless user manually copies images
+        // Update image paths to point to resources folder if images exist
+        if (node.type === 'file' && node.file && hasImages) {
+          return {
+            ...node,
+            file: `resources/${node.file}`
+          };
+        }
         return { ...node };
       }),
       edges: this.canvasData.edges,
     };
 
     const json = JSON.stringify(cleanData, null, '\t');
-    const blob = new Blob([json], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = this.fileName.replace('.xmind', '.canvas');
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+
+    if (hasImages) {
+      // Create ZIP file with canvas JSON and images
+      const zip = new JSZip();
+      
+      // Add canvas JSON file with original filename
+      const canvasFileName = this.fileName.replace('.xmind', '.canvas');
+      zip.file(canvasFileName, json);
+      
+      // Add all images to resources folder
+      const resourcesFolder = zip.folder('resources');
+      for (const [imageName, imageResource] of this.xmindData.images) {
+        resourcesFolder.file(imageName, imageResource.data);
+      }
+      
+      // Generate ZIP blob and download
+      const zipBlob = await zip.generateAsync({ type: 'blob' });
+      const url = URL.createObjectURL(zipBlob);
+      
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = this.fileName.replace('.xmind', '.canvas.zip');
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } else {
+      // No images, just download JSON file
+      const blob = new Blob([json], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = this.fileName.replace('.xmind', '.canvas');
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
   }
 }
 
