@@ -38,7 +38,8 @@ Simply upload your `.xmind` file and download the converted `.canvas` file. All 
 ```bash
 npm install          # Install dependencies
 npm run dev          # Development mode with watch
-npm run build        # Production build
+npm run build        # Production build (Obsidian plugin)
+npm run build:web    # Build web bundle (for GitHub Pages)
 npm test             # Run tests
 npm run lint         # Lint code
 ```

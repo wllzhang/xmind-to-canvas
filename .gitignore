@@ -2,6 +2,8 @@
 main.js
 main.js.map
 *.js.map
+web/xmind-to-canvas.umd.js
+web/xmind-to-canvas.umd.js.map
 
 # npm
 node_modules
