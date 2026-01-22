@@ -9,73 +9,155 @@ env:
   PLUGIN_NAME: xmind-to-canvas
 
 jobs:
-  build:
+  test:
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
 
       - name: Setup Node.js
         uses: actions/setup-node@v3
         with:
           node-version: '18'
+          cache: 'npm'
 
       - name: Install dependencies
         run: npm ci
-
-      - name: Build plugin
-        run: npm run build
 
       - name: Get version from tag
         id: get_version
         run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
 
-      - name: Verify version in manifest
+      - name: Update and sync versions
         run: |
+          TAG_VERSION="${{ steps.get_version.outputs.VERSION }}"
+          
+          # Update package.json version to match tag
+          npm version $TAG_VERSION --no-git-tag-version
+          
+          # Sync versions to manifest.json
+          npm run sync-versions
+          
+          # Verify all versions match
+          PACKAGE_VERSION=$(jq -r '.version' package.json)
           MANIFEST_VERSION=$(jq -r '.version' manifest.json)
-          if [ "$MANIFEST_VERSION" != "${{ steps.get_version.outputs.VERSION }}" ]; then
-            echo "Version mismatch: manifest.json has $MANIFEST_VERSION but tag is ${{ steps.get_version.outputs.VERSION }}"
+          
+          if [ "$PACKAGE_VERSION" != "$TAG_VERSION" ] || [ "$MANIFEST_VERSION" != "$TAG_VERSION" ]; then
+            echo "Error: Version sync failed"
+            echo "Package: $PACKAGE_VERSION, Manifest: $MANIFEST_VERSION, Tag: $TAG_VERSION"
             exit 1
           fi
+          
+          echo "✓ All versions synchronized to: $TAG_VERSION"
 
-      - name: Create release
-        id: create_release
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Commit version changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          
+          # Check if there are changes to commit
+          if [ -n "$(git status --porcelain package.json manifest.json versions.json 2>/dev/null)" ]; then
+            git add package.json manifest.json versions.json
+            git commit -m "chore: sync versions to ${{ steps.get_version.outputs.VERSION }} [skip ci]"
+            
+            # Find the default branch (main or master) and push
+            if git show-ref --verify --quiet refs/heads/main; then
+              git push origin HEAD:main || echo "Note: Could not push to main, versions updated in workflow only"
+            elif git show-ref --verify --quiet refs/heads/master; then
+              git push origin HEAD:master || echo "Note: Could not push to master, versions updated in workflow only"
+            else
+              # Try to determine default branch from remote
+              DEFAULT_BRANCH=$(git symbolic-ref refs/remotes/origin/HEAD | sed 's@^refs/remotes/origin/@@')
+              if [ -n "$DEFAULT_BRANCH" ]; then
+                git push origin HEAD:$DEFAULT_BRANCH || echo "Note: Could not push, versions updated in workflow only"
+              else
+                echo "Note: Could not determine default branch, versions updated in workflow only"
+              fi
+            fi
+          else
+            echo "No version changes to commit"
+          fi
+
+      - name: Run tests
+        run: npm test
+
+      - name: Run linter
+        run: npm run lint
+
+  build:
+    runs-on: ubuntu-latest
+    needs: test
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
         with:
-          tag_name: ${{ github.ref }}
-          release_name: Release ${{ steps.get_version.outputs.VERSION }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Get version from tag
+        id: get_version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+
+      - name: Verify and sync versions
+        run: |
+          # Verify package.json version matches tag
+          PACKAGE_VERSION=$(jq -r '.version' package.json)
+          TAG_VERSION="${{ steps.get_version.outputs.VERSION }}"
+          
+          if [ "$PACKAGE_VERSION" != "$TAG_VERSION" ]; then
+            echo "Error: package.json version ($PACKAGE_VERSION) doesn't match tag ($TAG_VERSION)"
+            exit 1
+          fi
+          
+          # Sync versions to ensure manifest is up to date
+          npm run sync-versions
+          
+          # Verify manifest.json version matches
+          MANIFEST_VERSION=$(jq -r '.version' manifest.json)
+          if [ "$MANIFEST_VERSION" != "$TAG_VERSION" ]; then
+            echo "Error: manifest.json version ($MANIFEST_VERSION) doesn't match tag ($TAG_VERSION)"
+            exit 1
+          fi
+          
+          echo "✓ All versions are synchronized: $TAG_VERSION"
+
+      - name: Build plugin
+        run: npm run build
+
+      - name: Create release archive
+        run: |
+          mkdir -p release
+          cp main.js manifest.json release/
+          if [ -f styles.css ]; then
+            cp styles.css release/
+          fi
+          cd release
+          zip -r ../${{ env.PLUGIN_NAME }}-${{ steps.get_version.outputs.VERSION }}.zip .
+          cd ..
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            ${{ env.PLUGIN_NAME }}-${{ steps.get_version.outputs.VERSION }}.zip
+            main.js
+            manifest.json
+          generate_release_notes: true
           draft: false
           prerelease: false
-
-      - name: Upload main.js
-        uses: actions/upload-release-asset@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./main.js
-          asset_name: main.js
-          asset_content_type: application/javascript
-
-      - name: Upload manifest.json
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./manifest.json
-          asset_name: manifest.json
-          asset_content_type: application/json
-
-      - name: Upload styles.css
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./styles.css
-          asset_name: styles.css
-          asset_content_type: text/css
