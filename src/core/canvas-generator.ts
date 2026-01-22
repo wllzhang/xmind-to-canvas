@@ -64,9 +64,14 @@ export class CanvasGenerator {
 
     // If node has an image, create an image file node
     if (elkNode.hasImage && elkNode.imageSrc) {
-      const imagePath = this.imagePathGenerator 
+      let imagePath = this.imagePathGenerator 
         ? this.imagePathGenerator(elkNode.imageSrc)
         : elkNode.imageSrc;
+
+      // Remove leading double slashes from path
+      if (imagePath.startsWith('//')) {
+        imagePath = imagePath.substring(2);
+      }
 
       // Create a file node for the image
       const imageNode: CanvasNode = {

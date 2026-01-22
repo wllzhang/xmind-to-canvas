@@ -126,15 +126,22 @@ export class XMindParser {
     // Handle different possible title fields
     const title = topic.title || topic.label || topic.name || 'Untitled';
     
+    // Ensure id is a string
+    const topicId = topic.id;
+    const id = (typeof topicId === 'string' ? topicId : null) || this.generateId();
+    
     const node: XMindNode = {
-      id: topic.id || this.generateId(),
+      id,
       title: String(title),
       children: [],
     };
 
     // Extract notes if available
     if (topic.notes) {
-      node.notes = topic.notes.plain || topic.notes;
+      const notes = topic.notes as Record<string, unknown> | string;
+      node.notes = (typeof notes === 'object' && notes !== null && 'plain' in notes 
+        ? String(notes.plain) 
+        : String(notes));
     }
 
     // Extract labels if available
@@ -151,16 +158,19 @@ export class XMindParser {
 
     // Extract image if available
     // XMind stores images as: { "src": "xap:resources/image.png", "width": 200, "height": 150 }
-    if (topic.image && topic.image.src) {
-      const imageSrc = topic.image.src;
-      // Extract the filename from "xap:resources/filename.png" or "resources/filename.png"
-      const match = imageSrc.match(/(?:xap:)?resources\/(.+)$/);
-      if (match) {
-        node.image = {
-          src: match[1],  // Store just the filename
-          width: topic.image.width,
-          height: topic.image.height,
-        };
+    if (topic.image && typeof topic.image === 'object' && topic.image !== null) {
+      const image = topic.image as Record<string, unknown>;
+      if (image.src && typeof image.src === 'string') {
+        const imageSrc = image.src;
+        // Extract the filename from "xap:resources/filename.png" or "resources/filename.png"
+        const match = imageSrc.match(/(?:xap:)?resources\/(.+)$/);
+        if (match) {
+          node.image = {
+            src: match[1],  // Store just the filename
+            width: typeof image.width === 'number' ? image.width : undefined,
+            height: typeof image.height === 'number' ? image.height : undefined,
+          };
+        }
       }
     }
 
@@ -170,19 +180,22 @@ export class XMindParser {
     let children: Record<string, unknown>[] = [];
     
     if (topic.children) {
-      if (topic.children.attached && Array.isArray(topic.children.attached)) {
-        // XMind Zen format: children.attached
-        children = topic.children.attached;
+      if (typeof topic.children === 'object' && topic.children !== null && !Array.isArray(topic.children)) {
+        const childrenObj = topic.children as Record<string, unknown>;
+        if (childrenObj.attached && Array.isArray(childrenObj.attached)) {
+          // XMind Zen format: children.attached
+          children = childrenObj.attached as Record<string, unknown>[];
+        }
       } else if (Array.isArray(topic.children)) {
         // Direct array format
-        children = topic.children;
+        children = topic.children as Record<string, unknown>[];
       }
     } else if (topic.attached && Array.isArray(topic.attached)) {
       // Alternative format
-      children = topic.attached;
+      children = topic.attached as Record<string, unknown>[];
     } else if (topic.topics && Array.isArray(topic.topics)) {
       // Another alternative format
-      children = topic.topics;
+      children = topic.topics as Record<string, unknown>[];
     }
     
     if (children.length > 0) {
