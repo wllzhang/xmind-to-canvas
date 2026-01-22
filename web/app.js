@@ -316,7 +316,7 @@ class App {
       if (file && file.name.endsWith('.xmind')) {
         this.handleFile(file);
       } else {
-        alert('请上传 .xmind 文件');
+        alert('Please upload a .xmind file');
       }
     });
 
@@ -370,7 +370,7 @@ class App {
       this.renderer.render(this.canvasData, this.xmindData.images);
       
     } catch (error) {
-      alert('转换失败: ' + error.message);
+      alert('Conversion failed: ' + error.message);
       console.error(error);
     } finally {
       this.hideLoading();
