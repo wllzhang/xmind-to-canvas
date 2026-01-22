@@ -2,6 +2,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Version](https://img.shields.io/badge/version-1.0.6-blue.svg)](https://github.com/wllzhang/xmind-to-canvas/releases)
+[![npm version](https://img.shields.io/npm/v/xmind-to-canvas.svg)](https://www.npmjs.com/package/xmind-to-canvas)
 [![Build Status](https://github.com/wllzhang/xmind-to-canvas/actions/workflows/release.yml/badge.svg)](https://github.com/wllzhang/xmind-to-canvas/actions/workflows/release.yml)
 
 Convert XMind mind map files to JSON Canvas format for seamless integration in Obsidian.
@@ -17,7 +18,7 @@ Convert XMind mind map files to JSON Canvas format for seamless integration in O
 - ⚡ Command palette integration (plugin only)
 - 🌐 Web version available - no installation required
 
-## Two Ways to Use
+## Usage
 
 ### Option 1: Obsidian Plugin (Recommended for Obsidian Users)
 
@@ -38,6 +39,30 @@ Use the standalone web version directly in your browser:
 🌐 **[Open GitHub Pages](https://wllzhang.github.io/xmind-to-canvas/)**
 
 Simply upload your `.xmind` file and download the converted `.canvas` file. All processing happens in your browser - no data is uploaded to any server.
+
+### Option 3: NPM Package (For Developers)
+
+Install as a dependency in your Node.js project:
+
+```bash
+npm install xmind-to-canvas
+```
+
+**Quick Start:**
+
+```javascript
+import { convertXMindToCanvas } from 'xmind-to-canvas';
+import fs from 'fs/promises';
+
+// Convert XMind file to Canvas format
+const xmindBuffer = await fs.readFile('example.xmind');
+const { canvasData } = await convertXMindToCanvas(xmindBuffer);
+
+// Save as JSON Canvas file
+await fs.writeFile('example.canvas', JSON.stringify(canvasData, null, 2));
+```
+
+For detailed API documentation, see [API.md](./API.md).
 
 ## Development
 
