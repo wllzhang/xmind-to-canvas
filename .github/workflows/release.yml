@@ -15,50 +15,99 @@ permissions:
   contents: write
   pages: write
   id-token: write
+  security-events: write
 
 env:
   PLUGIN_NAME: xmind-to-canvas
+  NODE_VERSION: '20'
 
 concurrency:
-  group: "pages"
+  group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
   check:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
       - name: Setup Node.js
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
-          node-version: '18'
+          node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
 
       - name: Install dependencies
         run: npm ci
 
-      - name: Run tests
-        run: npm test
-
       - name: Run linter
         run: npm run lint
+        continue-on-error: false
+
+      - name: Run tests
+        run: npm test
+        continue-on-error: false
+
+      - name: Run tests with coverage
+        run: npm run test:coverage
+        continue-on-error: false
+
+      - name: Upload coverage reports
+        if: always()
+        uses: codecov/codecov-action@v4
+        with:
+          files: ./coverage/coverage-final.json
+          fail_ci_if_error: false
+          token: ${{ secrets.CODECOV_TOKEN }}
+
+  security-scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run npm audit
+        run: npm audit --audit-level=moderate
+        continue-on-error: true
+
+      - name: Check for known vulnerabilities
+        run: |
+          if npm audit --audit-level=high --json 2>/dev/null | jq -e '.metadata.vulnerabilities.high > 0 or .metadata.vulnerabilities.critical > 0' > /dev/null; then
+            echo "❌ High or critical vulnerabilities found!"
+            npm audit --audit-level=high
+            exit 1
+          else
+            echo "✅ No high or critical vulnerabilities found"
+          fi
 
   sync-and-tag:
     runs-on: ubuntu-latest
-    needs: check
+    needs: [check, security-scan]
     if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    timeout-minutes: 20
     outputs:
       tag_created: ${{ steps.tag_check.outputs.created }}
       version: ${{ steps.get_version.outputs.VERSION }}
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           fetch-depth: 0
@@ -88,17 +137,51 @@ jobs:
 
       - name: Setup Node.js
         if: steps.check_versions.outputs.changed == 'true'
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
-          node-version: '18'
+          node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
 
       - name: Install dependencies
         if: steps.check_versions.outputs.changed == 'true'
         run: npm ci
 
-      - name: Sync versions
+      - name: Validate version format
         if: steps.check_versions.outputs.changed == 'true'
+        id: validate_version
+        run: |
+          # Validate semantic version format
+          PLUGIN_VERSION=$(jq -r 'keys | .[]' versions.json | sort -V -r | head -n1)
+          
+          if [ -z "$PLUGIN_VERSION" ] || [ "$PLUGIN_VERSION" == "null" ]; then
+            echo "❌ Error: No version found in versions.json"
+            exit 1
+          fi
+          
+          # Check if version matches semantic version pattern (x.y.z)
+          if ! echo "$PLUGIN_VERSION" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.-]+)?(\+[a-zA-Z0-9.-]+)?$'; then
+            echo "❌ Error: Invalid version format: $PLUGIN_VERSION (must be semantic version)"
+            exit 1
+          fi
+          
+          echo "✅ Version format valid: $PLUGIN_VERSION"
+
+      - name: Check if tag already exists
+        if: steps.check_versions.outputs.changed == 'true'
+        id: check_tag
+        run: |
+          PLUGIN_VERSION=$(jq -r 'keys | .[]' versions.json | sort -V -r | head -n1)
+          
+          if git rev-parse "$PLUGIN_VERSION" >/dev/null 2>&1; then
+            echo "⚠️  Tag $PLUGIN_VERSION already exists"
+            echo "exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "✅ Tag $PLUGIN_VERSION does not exist, can create"
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Sync versions
+        if: steps.check_versions.outputs.changed == 'true' && steps.check_tag.outputs.exists == 'false'
         run: |
           # Read versions.json and get the latest version (highest semantic version)
           # Get all version keys and sort by semantic version (descending)
@@ -106,7 +189,12 @@ jobs:
           MIN_APP_VERSION=$(jq -r ".[\"$PLUGIN_VERSION\"]" versions.json)
           
           if [ -z "$PLUGIN_VERSION" ] || [ "$PLUGIN_VERSION" == "null" ]; then
-            echo "Error: No version found in versions.json"
+            echo "❌ Error: No version found in versions.json"
+            exit 1
+          fi
+          
+          if [ -z "$MIN_APP_VERSION" ] || [ "$MIN_APP_VERSION" == "null" ]; then
+            echo "❌ Error: No minAppVersion found for version $PLUGIN_VERSION"
             exit 1
           fi
           
@@ -124,7 +212,7 @@ jobs:
           echo "  Min app version: $MIN_APP_VERSION"
 
       - name: Get version
-        if: steps.check_versions.outputs.changed == 'true'
+        if: steps.check_versions.outputs.changed == 'true' && steps.check_tag.outputs.exists == 'false'
         id: get_version
         run: |
           VERSION=$(jq -r '.version' package.json)
@@ -132,30 +220,67 @@ jobs:
           echo "Version: $VERSION"
 
       - name: Build plugin
-        if: steps.check_versions.outputs.changed == 'true'
+        if: steps.check_versions.outputs.changed == 'true' && steps.check_tag.outputs.exists == 'false'
         run: npm run build
 
+      - name: Verify build artifacts
+        if: steps.check_versions.outputs.changed == 'true' && steps.check_tag.outputs.exists == 'false'
+        run: |
+          if [ ! -f "main.js" ]; then
+            echo "❌ Error: main.js not found after build"
+            exit 1
+          fi
+          
+          if [ ! -f "manifest.json" ]; then
+            echo "❌ Error: manifest.json not found"
+            exit 1
+          fi
+          
+          # Verify manifest.json has correct version
+          MANIFEST_VERSION=$(jq -r '.version' manifest.json)
+          EXPECTED_VERSION="${{ steps.get_version.outputs.VERSION }}"
+          
+          if [ "$MANIFEST_VERSION" != "$EXPECTED_VERSION" ]; then
+            echo "❌ Error: Version mismatch in manifest.json"
+            echo "  Expected: $EXPECTED_VERSION"
+            echo "  Found: $MANIFEST_VERSION"
+            exit 1
+          fi
+          
+          echo "✅ Build artifacts verified"
+          echo "  main.js: $(wc -c < main.js) bytes"
+          echo "  manifest.json version: $MANIFEST_VERSION"
+
       - name: Create Git tag
-        if: steps.check_versions.outputs.changed == 'true'
+        if: steps.check_versions.outputs.changed == 'true' && steps.check_tag.outputs.exists == 'false'
         id: create_tag
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git tag -a "${{ steps.get_version.outputs.VERSION }}" -m "Release ${{ steps.get_version.outputs.VERSION }}"
-          git push origin "${{ steps.get_version.outputs.VERSION }}"
-          echo "created=true" >> $GITHUB_OUTPUT
+          
+          VERSION="${{ steps.get_version.outputs.VERSION }}"
+          
+          # Create annotated tag
+          if git tag -a "$VERSION" -m "Release $VERSION" 2>&1; then
+            git push origin "$VERSION"
+            echo "created=true" >> $GITHUB_OUTPUT
+            echo "✅ Tag $VERSION created and pushed"
+          else
+            echo "❌ Failed to create tag $VERSION"
+            exit 1
+          fi
 
       - name: Check if tag was created
         id: tag_check
         run: |
-          if [ "${{ steps.check_versions.outputs.changed }}" == "true" ] && [ "${{ steps.create_tag.outputs.created }}" == "true" ]; then
+          if [ "${{ steps.check_versions.outputs.changed }}" == "true" ] && [ "${{ steps.check_tag.outputs.exists }}" == "false" ] && [ "${{ steps.create_tag.outputs.created }}" == "true" ]; then
             echo "created=true" >> $GITHUB_OUTPUT
           else
             echo "created=false" >> $GITHUB_OUTPUT
           fi
 
       - name: Commit version changes
-        if: steps.check_versions.outputs.changed == 'true'
+        if: steps.check_versions.outputs.changed == 'true' && steps.check_tag.outputs.exists == 'false'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
@@ -164,27 +289,29 @@ jobs:
             git add package.json manifest.json
             git commit -m "chore: sync versions to ${{ steps.get_version.outputs.VERSION }} [skip ci]"
             git push origin HEAD:${{ github.ref_name }}
+            echo "✅ Version changes committed"
           else
-            echo "No version changes to commit"
+            echo "ℹ️  No version changes to commit"
           fi
 
   create-release:
     runs-on: ubuntu-latest
     needs: sync-and-tag
     if: needs.sync-and-tag.outputs.tag_created == 'true'
+    timeout-minutes: 15
     permissions:
       contents: write
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
       - name: Setup Node.js
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
-          node-version: '18'
+          node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
 
       - name: Install dependencies
@@ -193,14 +320,47 @@ jobs:
       - name: Build plugin
         run: npm run build
 
+      - name: Verify release artifacts
+        run: |
+          if [ ! -f "main.js" ] || [ ! -f "manifest.json" ]; then
+            echo "❌ Error: Required release files not found"
+            exit 1
+          fi
+          echo "✅ Release artifacts verified"
+
+      - name: Extract changelog
+        id: changelog
+        run: |
+          VERSION="${{ needs.sync-and-tag.outputs.version }}"
+          # Extract changelog entry for this version
+          if [ -f "CHANGELOG.md" ]; then
+            # Try to extract the changelog section for this version
+            CHANGELOG_TEXT=$(awk "/^## \[$VERSION\]/,/^## \[/" CHANGELOG.md | head -n -1 || awk "/^## \[$VERSION\]/,/^## \[Unreleased\]/" CHANGELOG.md || echo "")
+            if [ -n "$CHANGELOG_TEXT" ]; then
+              echo "body<<EOF" >> $GITHUB_OUTPUT
+              echo "$CHANGELOG_TEXT" >> $GITHUB_OUTPUT
+              echo "EOF" >> $GITHUB_OUTPUT
+            fi
+          fi
+
       - name: Create Release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           files: |
             main.js
             manifest.json
           tag_name: ${{ needs.sync-and-tag.outputs.version }}
-          name: ${{ needs.sync-and-tag.outputs.version }}
+          name: Release ${{ needs.sync-and-tag.outputs.version }}
+          body: |
+            ${{ steps.changelog.outputs.body }}
+            
+            ## Installation
+            
+            Download the latest release files:
+            - `main.js` - Plugin main file
+            - `manifest.json` - Plugin manifest
+            
+            See [README.md](README.md) for installation instructions.
           generate_release_notes: true
           draft: false
           prerelease: false
@@ -211,42 +371,90 @@ jobs:
     runs-on: ubuntu-latest
     needs: sync-and-tag
     if: needs.sync-and-tag.outputs.tag_created == 'true'
+    timeout-minutes: 15
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Setup Node.js
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
-          node-version: '18'
+          node-version: ${{ env.NODE_VERSION }}
           registry-url: 'https://registry.npmjs.org'
           cache: 'npm'
 
       - name: Install dependencies
         run: npm ci
 
+      - name: Check if version already published
+        id: check_npm_version
+        run: |
+          VERSION="${{ needs.sync-and-tag.outputs.version }}"
+          if npm view "${{ env.PLUGIN_NAME }}@$VERSION" version >/dev/null 2>&1; then
+            echo "⚠️  Version $VERSION already published to npm"
+            echo "published=true" >> $GITHUB_OUTPUT
+          else
+            echo "✅ Version $VERSION not published, can proceed"
+            echo "published=false" >> $GITHUB_OUTPUT
+          fi
+
       - name: Build npm package
+        if: steps.check_npm_version.outputs.published == 'false'
         run: npm run build:npm
 
+      - name: Verify npm build artifacts
+        if: steps.check_npm_version.outputs.published == 'false'
+        run: |
+          if [ ! -d "lib" ]; then
+            echo "❌ Error: lib directory not found after build"
+            exit 1
+          fi
+          
+          # Check required files
+          REQUIRED_FILES=("lib/index.js" "lib/index.d.ts")
+          for file in "${REQUIRED_FILES[@]}"; do
+            if [ ! -f "$file" ]; then
+              echo "❌ Error: Required file not found: $file"
+              exit 1
+            fi
+          done
+          
+          echo "✅ NPM build artifacts verified"
+
       - name: Publish to npm
+        if: steps.check_npm_version.outputs.published == 'false'
         run: npm publish --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Verify npm publication
+        if: steps.check_npm_version.outputs.published == 'false'
+        run: |
+          VERSION="${{ needs.sync-and-tag.outputs.version }}"
+          sleep 5  # Wait for npm registry to update
+          
+          if npm view "${{ env.PLUGIN_NAME }}@$VERSION" version >/dev/null 2>&1; then
+            echo "✅ Successfully published ${{ env.PLUGIN_NAME }}@$VERSION to npm"
+            npm view "${{ env.PLUGIN_NAME }}@$VERSION"
+          else
+            echo "⚠️  Warning: Could not verify publication (may need more time to propagate)"
+          fi
 
   build-web:
     runs-on: ubuntu-latest
     needs: check
     if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    timeout-minutes: 15
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Setup Node.js
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
-          node-version: '18'
+          node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
 
       - name: Install dependencies
@@ -255,11 +463,27 @@ jobs:
       - name: Build web bundle
         run: npm run build:web
 
+      - name: Verify web build artifacts
+        run: |
+          if [ ! -f "web/xmind-to-canvas.umd.js" ]; then
+            echo "❌ Error: Web bundle not found"
+            exit 1
+          fi
+          
+          if [ ! -f "web/index.html" ]; then
+            echo "❌ Error: index.html not found"
+            exit 1
+          fi
+          
+          BUNDLE_SIZE=$(wc -c < web/xmind-to-canvas.umd.js)
+          echo "✅ Web build artifacts verified"
+          echo "  Bundle size: $BUNDLE_SIZE bytes ($(numfmt --to=iec-i --suffix=B $BUNDLE_SIZE))"
+
       - name: Setup Pages
-        uses: actions/configure-pages@v3
+        uses: actions/configure-pages@v4
 
       - name: Upload artifact
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@v4
         with:
           path: './web'
 
@@ -267,6 +491,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: build-web
     if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    timeout-minutes: 5
     permissions:
       pages: write
       id-token: write
@@ -278,3 +503,27 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
+
+  notify:
+    runs-on: ubuntu-latest
+    needs: [create-release, publish-npm, deploy-pages]
+    if: always() && (needs.create-release.result != 'skipped' || needs.publish-npm.result != 'skipped')
+    timeout-minutes: 5
+
+    steps:
+      - name: Check job results
+        run: |
+          echo "## Release Status" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Job | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|-----|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Create Release | ${{ needs.create-release.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Publish to npm | ${{ needs.publish-npm.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Deploy Pages | ${{ needs.deploy-pages.result }} |" >> $GITHUB_STEP_SUMMARY
+          
+          if [ "${{ needs.create-release.result }}" == "success" ] && [ "${{ needs.publish-npm.result }}" == "success" ]; then
+            echo "✅ Release completed successfully!" >> $GITHUB_STEP_SUMMARY
+          elif [ "${{ needs.create-release.result }}" == "failure" ] || [ "${{ needs.publish-npm.result }}" == "failure" ]; then
+            echo "❌ Release failed. Please check the logs." >> $GITHUB_STEP_SUMMARY
+            exit 1
+          fi
