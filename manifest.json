@@ -3,7 +3,7 @@
   "name": "XMind to Canvas",
   "version": "1.0.1",
   "minAppVersion": "0.15.0",
-  "description": "Convert XMind files to JSON Canvas format for seamless mind map integration in Obsidian",
+  "description": "Convert XMind files to JSON Canvas format for seamless mind map integration.",
   "author": "wllzhang",
   "authorUrl": "https://github.com/wllzhang",
   "isDesktopOnly": false

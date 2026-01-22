@@ -149,8 +149,8 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git tag -a "v${{ steps.get_version.outputs.VERSION }}" -m "Release v${{ steps.get_version.outputs.VERSION }}"
-          git push origin "v${{ steps.get_version.outputs.VERSION }}"
+          git tag -a "${{ steps.get_version.outputs.VERSION }}" -m "Release ${{ steps.get_version.outputs.VERSION }}"
+          git push origin "${{ steps.get_version.outputs.VERSION }}"
 
       - name: Commit version changes
         if: steps.check_versions.outputs.changed == 'true'
@@ -174,8 +174,8 @@ jobs:
             ${{ env.PLUGIN_NAME }}-${{ steps.get_version.outputs.VERSION }}.zip
             main.js
             manifest.json
-          tag_name: v${{ steps.get_version.outputs.VERSION }}
-          name: Release v${{ steps.get_version.outputs.VERSION }}
+          tag_name: ${{ steps.get_version.outputs.VERSION }}
+          name: ${{ steps.get_version.outputs.VERSION }}
           generate_release_notes: true
           draft: false
           prerelease: false
