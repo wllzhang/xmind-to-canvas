@@ -68,5 +68,8 @@
     "@types/jszip": "3.4.0",
     "elkjs": "^0.9.3",
     "jszip": "3.10.1"
+  },
+  "overrides": {
+    "esbuild": "^0.25.0"
   }
 }
