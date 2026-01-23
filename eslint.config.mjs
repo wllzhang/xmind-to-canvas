@@ -1,8 +1,10 @@
 import tsparser from "@typescript-eslint/parser";
 import tseslint from "@typescript-eslint/eslint-plugin";
+import { defineConfig } from "eslint/config";
 import obsidianmd from "eslint-plugin-obsidianmd";
 
-export default [
+export default defineConfig([
+  ...obsidianmd.configs.recommended,
   {
     files: ["**/*.ts"],
     languageOptions: {
@@ -11,27 +13,17 @@ export default [
         sourceType: "module",
         project: "./tsconfig.json",
       },
-      globals: {
-        // Add any globals you need
-      },
     },
     plugins: {
       "@typescript-eslint": tseslint,
       "obsidianmd": obsidianmd,
     },
+    // Optional project overrides
+    // Only add rules here if you need to override the recommended config
     rules: {
-      // ESLint recommended rules
-      "no-unused-vars": "off",
-      "no-prototype-builtins": "off",
-      
-      // TypeScript ESLint rules
-      "@typescript-eslint/no-unused-vars": ["error", { "args": "none" }],
-      "@typescript-eslint/ban-ts-comment": "off",
-      "@typescript-eslint/no-empty-function": "off",
-      
-      // Obsidian recommended rules
-      ...obsidianmd.configs.recommended,
+      // Example: override unused vars from "warn" to "error" if needed
+      // "@typescript-eslint/no-unused-vars": ["error", { "args": "none" }],
     },
   },
-];
+]);
 
