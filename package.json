@@ -1,6 +1,6 @@
 {
   "name": "@wllzhang/xmind-to-canvas",
-  "version": "1.1.5",
+  "version": "1.1.6",
   "description": "Convert XMind files to JSON Canvas format",
   "main": "main.js",
   "type": "module",
