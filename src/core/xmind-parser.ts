@@ -46,13 +46,15 @@ export class XMindParser {
       const sheets: XMindSheet[] = [];
       
       if (workbookData && Array.isArray(workbookData)) {
-        for (const sheet of workbookData) {
-          const rootTopic = sheet.rootTopic;
+        for (const sheet of workbookData as Array<Record<string, unknown>>) {
+          const rootTopic = sheet.rootTopic as Record<string, unknown> | undefined;
           
           if (rootTopic) {
+            const sheetId = typeof sheet.id === 'string' ? sheet.id : undefined;
+            const sheetTitle = typeof sheet.title === 'string' ? sheet.title : undefined;
             sheets.push({
-              id: sheet.id || this.generateId(),
-              title: sheet.title || 'Untitled Sheet',
+              id: sheetId || this.generateId(),
+              title: sheetTitle || 'Untitled Sheet',
               rootTopic: this.extractNodes(rootTopic),
             });
           }
@@ -148,7 +150,8 @@ export class XMindParser {
         // Handle edge case where object wasn't caught by previous check
         title = JSON.stringify(titleRaw);
       } else {
-        title = String(titleRaw);
+        // Use explicit conversion to avoid Object's default stringification
+        title = typeof titleRaw === 'string' ? titleRaw : JSON.stringify(titleRaw);
       }
     }
     

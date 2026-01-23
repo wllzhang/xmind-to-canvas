@@ -13,6 +13,9 @@ export default defineConfig([
         sourceType: "module",
         project: "./tsconfig.json",
       },
+      globals: {
+        console: "readonly",
+      },
     },
     plugins: {
       "@typescript-eslint": tseslint,
