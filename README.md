@@ -19,17 +19,24 @@ Convert XMind mind map files to JSON Canvas format for seamless integration in O
 
 ## Usage
 
-### Option 1: Obsidian Plugin (Recommended for Obsidian Users)
+### Option 1: Obsidian Plugin
 
-Install from the Obsidian Community Plugins marketplace or manually:
+#### Install from the Obsidian BRAT plugin(**Recommended**):
+1. Instal [BRAT](https://github.com/TfTHacker/obsidian42-brat) plugin
+2. Add this repository: https://github.com/wllzhang/xmind-to-canvas
+3. **File Menu:** Right-click any `.xmind` file → Select "Convert to Canvas"
 
+#### Install from the Obsidian Community Plugins marketplace(Future Adding):
+1. **Command Palette:** Press `Ctrl/Cmd + P` → Search "Convert XMind to Canvas" → Select file
+2. **File Menu:** Right-click any `.xmind` file → Select "Convert to Canvas"
+
+#### Install Manually:
 1. Download the latest release from [GitHub Releases](https://github.com/wllzhang/xmind-to-canvas/releases)
 2. Extract files to `<vault>/.obsidian/plugins/xmind-to-canvas/`
 3. Reload Obsidian and enable the plugin in Settings → Community Plugins
 
-**Usage:**
-- **Command Palette:** Press `Ctrl/Cmd + P` → Search "Convert XMind to Canvas" → Select file
-- **File Menu:** Right-click any `.xmind` file → Select "Convert to Canvas"
+ 
+
 
 ### Option 2: Web Version (No Installation Required)
 
